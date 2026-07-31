@@ -8,8 +8,13 @@ defmodule AppworkCache.MixProject do
       elixir: "~> 1.20",
       start_permanent: Mix.env() == :prod,
       elixirc_paths: elixirc_paths(Mix.env()),
-      deps: deps()
+      deps: deps(),
+      aliases: aliases()
     ]
+  end
+
+  def cli do
+    [preferred_envs: [check: :test]]
   end
 
   # The Cacheable/Expirable protocols ship with no concrete implementation in
@@ -31,6 +36,17 @@ defmodule AppworkCache.MixProject do
     [
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false}
+    ]
+  end
+
+  defp aliases do
+    [
+      check: [
+        "format --check-formatted",
+        "compile --warnings-as-errors --force",
+        "credo --strict",
+        "test"
+      ]
     ]
   end
 end
