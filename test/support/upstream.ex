@@ -31,6 +31,9 @@ defmodule Support.Upstream do
   @doc "Changes the TTL used for responses returned from now on."
   def set_ttl(ttl), do: Agent.update(__MODULE__, &Map.put(&1, :ttl, ttl))
 
+  @doc "Changes the simulated latency for calls made from now on."
+  def set_delay(delay_ms), do: Agent.update(__MODULE__, &Map.put(&1, :delay_ms, delay_ms))
+
   @doc "Requests the upstream has been called with, most recent first."
   def calls, do: Agent.get(__MODULE__, & &1.calls)
 

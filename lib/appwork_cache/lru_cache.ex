@@ -79,8 +79,23 @@ defmodule AppworkCache.LRUCache do
 
       {:miss, upstream} ->
         response = upstream.fetch(request)
-        GenServer.call(cache, {:put, hash, response})
+        GenServer.call(cache, {:put, hash, response, ttl!(response)})
         response
+    end
+  end
+
+  # Resolved in the calling process, like the upstream call itself: a response
+  # with no Expirable implementation or a bogus TTL must fail that one caller,
+  # not crash the cache process and drop every stored entry with it.
+  defp ttl!(response) do
+    case Expirable.ttl(response) do
+      ttl when is_integer(ttl) and ttl > 0 ->
+        ttl
+
+      other ->
+        raise ArgumentError,
+              "Expirable.ttl/1 must return a positive integer number of seconds, " <>
+                "got #{inspect(other)} for #{inspect(response.__struct__)}"
     end
   end
 
@@ -99,8 +114,8 @@ defmodule AppworkCache.LRUCache do
     end
   end
 
-  def handle_call({:put, hash, response}, _from, state) do
-    expires_at = state.clock.monotonic_time() + Expirable.ttl(response)
+  def handle_call({:put, hash, response, ttl}, _from, state) do
+    expires_at = state.clock.monotonic_time() + ttl
     {:reply, :ok, put(state, hash, response, expires_at)}
   end
 
