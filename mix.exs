@@ -21,15 +21,12 @@ defmodule AppworkCache.MixProject do
   defp elixirc_paths(env) when env in [:dev, :test], do: ["lib", "test/support"]
   defp elixirc_paths(_), do: ["lib"]
 
-  # Run "mix help compile.app" to learn about applications.
+  # The cache is a library: callers start LRUCache under their own
+  # supervision tree, so there is no application callback module.
   def application do
-    [
-      extra_applications: [:logger],
-      mod: {AppworkCache.Application, []}
-    ]
+    [extra_applications: [:logger]]
   end
 
-  # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
