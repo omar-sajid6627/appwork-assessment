@@ -4,5 +4,5 @@ defmodule AppworkCache.Clock.System do
   @behaviour AppworkCache.Clock
 
   @impl AppworkCache.Clock
-  def monotonic_time, do: System.monotonic_time(:second)
+  def monotonic_time, do: System.monotonic_time(:millisecond)
 end

@@ -115,7 +115,7 @@ defmodule AppworkCache.LRUCache do
   end
 
   def handle_call({:put, hash, response, ttl}, _from, state) do
-    expires_at = state.clock.monotonic_time() + ttl
+    expires_at = state.clock.monotonic_time() + ttl * 1000
     {:reply, :ok, put(state, hash, response, expires_at)}
   end
 

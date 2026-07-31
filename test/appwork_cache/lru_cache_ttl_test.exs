@@ -32,6 +32,25 @@ defmodule AppworkCache.LRUCacheTTLTest do
     assert Support.Upstream.call_count(request) == 2
   end
 
+  test "an entry is valid for its full TTL, measured in milliseconds" do
+    stop_supervised!(Support.FakeClock)
+    # Just before a whole-second boundary: a seconds-resolution clock would
+    # round the insert time down and expire this entry after 1ms.
+    start_supervised!({Support.FakeClock, start_at: 999})
+    start_supervised!({Support.Upstream, ttl: 1})
+    cache = start_cache()
+    request = %Support.Request{id: 1}
+
+    LRUCache.fetch(cache, request)
+    Support.FakeClock.advance_ms(999)
+    LRUCache.fetch(cache, request)
+    assert Support.Upstream.call_count(request) == 1
+
+    Support.FakeClock.advance_ms(1)
+    LRUCache.fetch(cache, request)
+    assert Support.Upstream.call_count(request) == 2
+  end
+
   test "refreshing an expired entry doesn't evict other entries (no double-counting toward CAP)" do
     start_supervised!({Support.Upstream, ttl: 5})
     cache = start_cache()
