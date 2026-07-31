@@ -12,7 +12,9 @@ behaviours as appropriate"):
 
 `Clock` is a behaviour too (`AppworkCache.Clock.System` is its default, real implementation) -
 it exists purely so TTL expiry can be driven by a controllable fake clock in tests instead of
-`Process.sleep/1` and real elapsed time.
+`Process.sleep/1` and real elapsed time. It reports milliseconds even though TTLs are whole
+seconds: a seconds-resolution clock floors the insert time, so an entry stored at 0.999s with a
+1s TTL would expire 1ms later.
 
 ```mermaid
 classDiagram
@@ -35,7 +37,7 @@ classDiagram
     }
     class Clock {
         <<behaviour>>
-        +monotonic_time() integer
+        +monotonic_time() integer_ms
     }
     class ClockSystem["AppworkCache.Clock.System"] {
         <<module>>
@@ -54,7 +56,7 @@ classDiagram
     LRUCache ..|> Cache : implements
     LRUCache --> Upstream : fetch/1, from the calling client process
     LRUCache --> Cacheable : hash(request)
-    LRUCache --> Expirable : ttl(response), at insert time
+    LRUCache --> Expirable : ttl(response), in the calling process
     LRUCache --> Clock : monotonic_time()
     ClockSystem ..|> Clock : implements
 ```
@@ -94,11 +96,16 @@ sequenceDiagram
     Note over Client,Upstream: happens in the client process,<br/>off the cache's mailbox
     Client->>Upstream: fetch(request)
     Upstream-->>Client: response
-    Client->>Cache: GenServer.call {:put, hash, response}
-    Note over Cache: expires_at = now + Expirable.ttl(response)<br/>refresh existing key, or insert + evict LRU if over cap
+    Note over Client: ttl = Expirable.ttl(response)<br/>raise unless a positive integer
+    Client->>Cache: GenServer.call {:put, hash, response, ttl}
+    Note over Cache: expires_at = now_ms + ttl * 1000<br/>refresh existing key, or insert + evict LRU if over cap
     Cache-->>Client: :ok
     Client-->>Client: return response
 ```
+
+Resolving the TTL in the client is deliberate as well: `Expirable` is caller-supplied code, and a
+response without an implementation (or with a TTL that isn't a positive integer) should fail the
+one caller that fetched it, not crash the cache process and drop every stored entry.
 
 Other concurrent `Client2`, `Client3`, ... calls to `Cache` are only ever blocked behind fast,
 in-memory `handle_call`s - never behind `Upstream.fetch/1`. This is what was verified in
