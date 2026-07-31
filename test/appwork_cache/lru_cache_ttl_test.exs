@@ -73,6 +73,29 @@ defmodule AppworkCache.LRUCacheTTLTest do
     assert Support.Upstream.call_count(r2) == 1
   end
 
+  test "refetching an expired entry makes it the most recently used" do
+    start_supervised!({Support.Upstream, ttl: 5})
+    cache = start_cache()
+    r1 = %Support.Request{id: 1}
+    r2 = %Support.Request{id: 2}
+    r3 = %Support.Request{id: 3}
+
+    LRUCache.fetch(cache, r1)
+    Support.Upstream.set_ttl(1000)
+    LRUCache.fetch(cache, r2)
+    Support.FakeClock.advance(5)
+
+    # r1 expired and is refetched, which makes it the most recently used, so
+    # the next new request evicts r2 rather than r1.
+    LRUCache.fetch(cache, r1)
+    LRUCache.fetch(cache, r3)
+
+    LRUCache.fetch(cache, r1)
+    assert Support.Upstream.call_count(r1) == 2
+    LRUCache.fetch(cache, r2)
+    assert Support.Upstream.call_count(r2) == 2
+  end
+
   defp start_cache do
     start_supervised!({LRUCache, cap: 2, upstream: Support.Upstream, clock: Support.FakeClock})
   end

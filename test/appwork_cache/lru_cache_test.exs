@@ -76,10 +76,51 @@ defmodule AppworkCache.LRUCacheTest do
     assert Support.Upstream.call_count(r2) == 2
   end
 
-  test "start_link rejects a non-positive-integer cap" do
-    assert_raise ArgumentError, fn ->
-      LRUCache.start_link(cap: 0, upstream: Support.Upstream)
+  test "start_link rejects a cap that isn't a positive integer" do
+    for cap <- [0, -1, 1.5, nil, "2"] do
+      assert_raise ArgumentError, fn ->
+        LRUCache.start_link(cap: cap, upstream: Support.Upstream)
+      end
     end
+  end
+
+  test "start_link requires :cap and :upstream" do
+    assert_raise KeyError, fn -> LRUCache.start_link(upstream: Support.Upstream) end
+    assert_raise KeyError, fn -> LRUCache.start_link(cap: 1) end
+  end
+
+  test "with cap 1, a repeat is a hit and any new request evicts the old one" do
+    start_supervised!(Support.Upstream)
+    cache = start_supervised!({LRUCache, cap: 1, upstream: Support.Upstream})
+    r1 = %Support.Request{id: 1}
+    r2 = %Support.Request{id: 2}
+
+    LRUCache.fetch(cache, r1)
+    LRUCache.fetch(cache, r1)
+    assert Support.Upstream.call_count(r1) == 1
+
+    LRUCache.fetch(cache, r2)
+    LRUCache.fetch(cache, r2)
+    assert Support.Upstream.call_count(r2) == 1
+
+    LRUCache.fetch(cache, r1)
+    assert Support.Upstream.call_count(r1) == 2
+  end
+
+  test "keeps exactly the last CAP distinct requests over a longer sequence" do
+    start_supervised!(Support.Upstream)
+    cache = start_supervised!({LRUCache, cap: 3, upstream: Support.Upstream})
+    [r1, r2, r3, r4] = for id <- 1..4, do: %Support.Request{id: id}
+
+    # Recency after this sequence, most recent first: r4, r2, r3 (r1 evicted).
+    for request <- [r1, r2, r3, r2, r4], do: LRUCache.fetch(cache, request)
+    assert Support.Upstream.call_count() == 4
+
+    for request <- [r2, r3, r4], do: LRUCache.fetch(cache, request)
+    assert Support.Upstream.call_count() == 4
+
+    LRUCache.fetch(cache, r1)
+    assert Support.Upstream.call_count(r1) == 2
   end
 
   test "concurrent fetches to different keys don't serialize behind a slow upstream" do
